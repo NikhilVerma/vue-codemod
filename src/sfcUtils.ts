@@ -44,9 +44,11 @@ export function stringify(sfcDescriptor: SFCDescriptor) {
   const { template, script, styles, customBlocks } = sfcDescriptor
 
   return (
-    ([template, script, ...styles, ...customBlocks]
-      // discard blocks that don't exist
-      .filter((block) => block != null) as Array<NonNullable<SFCBlock>>)
+    (
+      [template, script, ...styles, ...customBlocks]
+        // discard blocks that don't exist
+        .filter((block) => block != null) as Array<NonNullable<SFCBlock>>
+    )
       // sort blocks by source position
       .sort((a, b) => a.loc.start.offset - b.loc.start.offset)
       // figure out exact source positions of blocks
@@ -78,13 +80,7 @@ export function stringify(sfcDescriptor: SFCDescriptor) {
           newlinesBefore = block.startOfOpenTag - prevBlock.endOfCloseTag
         }
 
-        return (
-          sfcCode +
-          '\n'.repeat(newlinesBefore) +
-          block.openTag +
-          block.content +
-          block.closeTag
-        )
+        return sfcCode + '\n'.repeat(newlinesBefore) + block.openTag + block.content + block.closeTag
       }, '')
   )
 }
@@ -175,23 +171,13 @@ export interface SFCParseResult {
 }
 
 const SFC_CACHE_MAX_SIZE = 500
-const sourceToSFC = new (require('lru-cache'))(SFC_CACHE_MAX_SIZE) as Map<
-  string,
-  SFCParseResult
->
+const sourceToSFC = new (require('lru-cache'))(SFC_CACHE_MAX_SIZE) as Map<string, SFCParseResult>
 
 export function parse(
   source: string,
-  {
-    sourceMap = true,
-    filename = 'anonymous.vue',
-    sourceRoot = '',
-    pad = false,
-    compiler = CompilerDom,
-  }: SFCParseOptions = {}
+  { sourceMap = true, filename = 'anonymous.vue', sourceRoot = '', pad = false, compiler = CompilerDom }: SFCParseOptions = {}
 ): SFCParseResult {
-  const sourceKey =
-    source + sourceMap + filename + sourceRoot + pad + compiler.parse
+  const sourceKey = source + sourceMap + filename + sourceRoot + pad + compiler.parse
   const cache = sourceToSFC.get(sourceKey)
   if (cache) {
     return cache
@@ -219,14 +205,7 @@ export function parse(
       if (
         (!parent && tag !== 'template') ||
         // <template lang="xxx"> should also be treated as raw text
-        (tag === 'template' &&
-          props.some(
-            (p) =>
-              p.type === NodeTypes.ATTRIBUTE &&
-              p.name === 'lang' &&
-              p.value &&
-              p.value.content !== 'html'
-          ))
+        (tag === 'template' && props.some((p) => p.type === NodeTypes.ATTRIBUTE && p.name === 'lang' && p.value && p.value.content !== 'html'))
       ) {
         return TextModes.RAWTEXT
       } else {
@@ -248,11 +227,7 @@ export function parse(
     switch (node.tag) {
       case 'template':
         if (!descriptor.template) {
-          const templateBlock = (descriptor.template = createBlock(
-            node,
-            source,
-            false
-          ) as SFCTemplateBlock)
+          const templateBlock = (descriptor.template = createBlock(node, source, false) as SFCTemplateBlock)
           templateBlock.ast = node
         } else {
           errors.push(createDuplicateBlockError(node))
@@ -274,12 +249,7 @@ export function parse(
       case 'style':
         const styleBlock = createBlock(node, source, pad) as SFCStyleBlock
         if (styleBlock.attrs.vars) {
-          errors.push(
-            new SyntaxError(
-              `<style vars> has been replaced by a new proposal: ` +
-                `https://github.com/vuejs/rfcs/pull/231`
-            )
-          )
+          errors.push(new SyntaxError(`<style vars> has been replaced by a new proposal: ` + `https://github.com/vuejs/rfcs/pull/231`))
         }
         descriptor.styles.push(styleBlock)
         break
@@ -292,19 +262,13 @@ export function parse(
   if (descriptor.scriptSetup) {
     if (descriptor.scriptSetup.src) {
       errors.push(
-        new SyntaxError(
-          `<script setup> cannot use the "src" attribute because ` +
-            `its syntax will be ambiguous outside of the component.`
-        )
+        new SyntaxError(`<script setup> cannot use the "src" attribute because ` + `its syntax will be ambiguous outside of the component.`)
       )
       descriptor.scriptSetup = null
     }
     if (descriptor.script && descriptor.script.src) {
       errors.push(
-        new SyntaxError(
-          `<script> cannot use the "src" attribute when <script setup> is ` +
-            `also present because they must be processed together.`
-        )
+        new SyntaxError(`<script> cannot use the "src" attribute when <script setup> is ` + `also present because they must be processed together.`)
       )
       descriptor.script = null
     }
@@ -313,13 +277,7 @@ export function parse(
   if (sourceMap) {
     const genMap = (block: SFCBlock | null) => {
       if (block && !block.src) {
-        block.map = generateSourceMap(
-          filename,
-          source,
-          block.content,
-          sourceRoot,
-          !pad || block.type === 'template' ? block.loc.start.line - 1 : 0
-        )
+        block.map = generateSourceMap(filename, source, block.content, sourceRoot, !pad || block.type === 'template' ? block.loc.start.line - 1 : 0)
       }
     }
     genMap(descriptor.template)
@@ -336,24 +294,13 @@ export function parse(
   return result
 }
 
-function createDuplicateBlockError(
-  node: ElementNode,
-  isScriptSetup = false
-): CompilerError {
-  const err = new SyntaxError(
-    `Single file component can contain only one <${node.tag}${
-      isScriptSetup ? ` setup` : ``
-    }> element`
-  ) as CompilerError
+function createDuplicateBlockError(node: ElementNode, isScriptSetup = false): CompilerError {
+  const err = new SyntaxError(`Single file component can contain only one <${node.tag}${isScriptSetup ? ` setup` : ``}> element`) as CompilerError
   err.loc = node.loc
   return err
 }
 
-function createBlock(
-  node: ElementNode,
-  source: string,
-  pad: SFCParseOptions['pad']
-): SFCBlock {
+function createBlock(node: ElementNode, source: string, pad: SFCParseOptions['pad']): SFCBlock {
   const type = node.tag
   let { start, end } = node.loc
   let content = ''
@@ -402,13 +349,7 @@ const splitRE = /\r?\n/g
 const emptyRE = /^(?:\/\/)?\s*$/
 const replaceRE = /./g
 
-function generateSourceMap(
-  filename: string,
-  source: string,
-  generated: string,
-  sourceRoot: string,
-  lineOffset: number
-): RawSourceMap {
+function generateSourceMap(filename: string, source: string, generated: string, sourceRoot: string, lineOffset: number): RawSourceMap {
   const map = new SourceMapGenerator({
     file: filename.replace(/\\/g, '/'),
     sourceRoot: sourceRoot.replace(/\\/g, '/'),
@@ -438,11 +379,7 @@ function generateSourceMap(
   return JSON.parse(map.toString())
 }
 
-function padContent(
-  content: string,
-  block: SFCBlock,
-  pad: SFCParseOptions['pad']
-): string {
+function padContent(content: string, block: SFCBlock, pad: SFCParseOptions['pad']): string {
   content = content.slice(0, block.loc.start.offset)
   if (pad === 'space') {
     return content.replace(replaceRE, ' ')
