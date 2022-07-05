@@ -20,6 +20,6 @@
     "lib": ["ES2018", "DOM"],
     "rootDir": "."
   },
-  "include": ["src/**/*.*", "transformations/**/*.*"],
+  "include": ["src/**/*.*", "transformations/**/*.*", "bin/**/*.*"],
   "exclude": ["dist", "playground", "node_modules"]
 }
