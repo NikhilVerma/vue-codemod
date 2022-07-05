@@ -3,14 +3,15 @@ import type { ASTTransformation } from '../src/wrapAstTransformation'
 
 import { transformAST as addImport } from './add-import'
 import { transformAST as removeExtraneousImport } from './remove-extraneous-import'
+import { Options } from 'jscodeshift'
 
-type Params = {
-  useCompositionApi: boolean
-}
+// type Params = {
+//   useCompositionApi: boolean
+// }
 
-export const transformAST: ASTTransformation<Params | undefined> = (
+export const transformAST: ASTTransformation = (
   context,
-  { useCompositionApi }: Params = {
+  { useCompositionApi }: Options = {
     useCompositionApi: false,
   }
 ) => {
@@ -55,10 +56,7 @@ export const transformAST: ASTTransformation<Params | undefined> = (
     }
 
     importDefineComponent()
-    defaultExport.nodes()[0].declaration = j.callExpression(
-      j.identifier('defineComponent'),
-      [declarationNode]
-    )
+    defaultExport.nodes()[0].declaration = j.callExpression(j.identifier('defineComponent'), [declarationNode])
     removeExtraneousImport(context, { localBinding: 'Vue' })
   }
 }

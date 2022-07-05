@@ -11,14 +11,12 @@ import wrap from '../src/wrapAstTransformation'
 import type { ASTTransformation } from '../src/wrapAstTransformation'
 import { transformAST as removeExtraneousImport } from './remove-extraneous-import'
 
-type Params = {
-  removablePlugins: string[]
-}
+// type Params = {
+//   removablePlugins: string[]
+// }
 
-export const transformAST: ASTTransformation<Params> = (
-  context,
-  { removablePlugins }
-) => {
+//@ts-expect-error
+export const transformAST: ASTTransformation = (context, { removablePlugins }) => {
   const { j, root } = context
   const vueUseCalls = root.find(j.CallExpression, {
     callee: {

@@ -1,3 +1,6 @@
+// @ts-nocheck
+
+import { NodePath } from '@babel/core'
 import {
   arrayExpression,
   arrowFunctionExpression,
@@ -121,19 +124,43 @@ function classToOptions(context: Context) {
       dec.kind === 'method' &&
         'name' in dec.key &&
         dec.key.name &&
-        !vueHooks.includes(dec.key.name) &&
+        !vueHooks.includes(dec.key.name as string) &&
+        dec.decorators?.[0]?.expression &&
+        'callee' in dec.decorators?.[0]?.expression &&
+        'name' in dec.decorators?.[0]?.expression.callee &&
         dec.decorators?.[0]?.expression?.callee?.name !== 'Watch' &&
         dec.decorators?.[0]?.expression?.callee?.name !== 'Emit'
     )
   )
 
-  const prevClassHooks = prevDefaultExportDeclaration.find(ClassMethod, (dec) => dec.kind === 'method' && vueHooks.includes(dec.key.name))
-  const prevClassWatches = prevDefaultExportDeclaration.find(ClassMethod, (dec) => dec.decorators?.[0]?.expression?.callee?.name === 'Watch')
-  const prevClassEmits = prevDefaultExportDeclaration.find(ClassMethod, (dec) => dec.decorators?.[0]?.expression?.callee?.name === 'Emit')
+  const prevClassHooks = prevDefaultExportDeclaration.find(
+    ClassMethod,
+    (dec) => dec.kind === 'method' && vueHooks.includes((dec.key as Identifier).name)
+  )
+
+  const prevClassWatches = prevDefaultExportDeclaration.find(ClassMethod, (dec) =>
+    Boolean(
+      dec.decorators?.[0]?.expression &&
+        'callee' in dec.decorators?.[0]?.expression &&
+        'name' in dec.decorators?.[0]?.expression.callee &&
+        dec.decorators?.[0]?.expression?.callee?.name === 'Watch'
+    )
+  )
+
+  const prevClassEmits = prevDefaultExportDeclaration.find(ClassMethod, (dec) =>
+    Boolean(
+      dec.decorators?.[0]?.expression &&
+        'callee' in dec.decorators?.[0]?.expression &&
+        'name' in dec.decorators?.[0]?.expression.callee &&
+        dec.decorators?.[0]?.expression?.callee?.name === 'Emit'
+    )
+  )
 
   const componentDecorator =
     prevClass.length > 0
-      ? prevClass.get(0).node.decorators?.find((d) => d.expression.callee?.name === 'Component' || d.expression.name === 'Component')
+      ? (prevClass.get(0) as NodePath<ClassMethod>).node.decorators?.find(
+          (d) => d.expression.callee?.name === 'Component' || d.expression.name === 'Component'
+        )
       : null
 
   const newClassProperties = componentDecorator?.expression?.arguments?.[0]?.properties || []

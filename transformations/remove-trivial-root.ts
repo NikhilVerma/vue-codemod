@@ -13,10 +13,7 @@ import type * as N from 'jscodeshift'
  */
 export const transformAST: ASTTransformation = ({ root, j }) => {
   const appRoots = root.find(j.CallExpression, (node: N.CallExpression) => {
-    if (
-      node.arguments.length === 1 &&
-      j.ObjectExpression.check(node.arguments[0])
-    ) {
+    if (node.arguments.length === 1 && j.ObjectExpression.check(node.arguments[0])) {
       if (j.Identifier.check(node.callee) && node.callee.name === 'createApp') {
         return true
       }
@@ -31,6 +28,8 @@ export const transformAST: ASTTransformation = ({ root, j }) => {
         return true
       }
     }
+
+    return false
   })
   appRoots.forEach(({ node: createAppCall }) => {
     if (!j.ObjectExpression.check(createAppCall.arguments[0])) {
@@ -46,11 +45,7 @@ export const transformAST: ASTTransformation = ({ root, j }) => {
       return
     }
 
-    if (
-      prop.key &&
-      j.Identifier.check(prop.key) &&
-      prop.key.name === 'render'
-    ) {
+    if (prop.key && j.Identifier.check(prop.key) && prop.key.name === 'render') {
       let renderFnBody
       if (j.ObjectMethod.check(prop)) {
         renderFnBody = prop.body
@@ -72,12 +67,7 @@ export const transformAST: ASTTransformation = ({ root, j }) => {
         callExpr = renderFnBody.body[0].argument
       }
 
-      if (
-        callExpr &&
-        j.Identifier.check(callExpr.callee) &&
-        callExpr.callee.name === 'h' &&
-        callExpr.arguments.length === 1
-      ) {
+      if (callExpr && j.Identifier.check(callExpr.callee) && callExpr.callee.name === 'h' && callExpr.arguments.length === 1) {
         const rootComponent = callExpr.arguments[0]
         createAppCall.arguments[0] = rootComponent
       }

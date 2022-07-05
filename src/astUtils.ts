@@ -13,20 +13,14 @@ import type {
 } from 'jscodeshift'
 import type { Context } from './wrapAstTransformation'
 
-type VueOptionsType =
-  | ObjectExpression
-  | ArrowFunctionExpression
-  | FunctionExpression
-  | ObjectMethod
+type VueOptionsType = ObjectExpression | ArrowFunctionExpression | FunctionExpression | ObjectMethod
 
 // TODO: for simplicity of implementation, we've skipped all `{ ...expr }` cases
 export function getVueOptions(context: Context): Collection<VueOptionsType> {
   const paths: ASTPath<VueOptionsType>[] = []
   const { j, root, filename } = context
 
-  function wrapOptionsInPaths<T>(
-    nodes: VueOptionsType
-  ): ASTPath<VueOptionsType>[] {
+  function wrapOptionsInPaths<T>(nodes: VueOptionsType): ASTPath<VueOptionsType>[] {
     return j(nodes).paths()
   }
 
@@ -42,8 +36,7 @@ export function getVueOptions(context: Context): Collection<VueOptionsType> {
       return null
     }
 
-    const declarationKind = declarator.closest(j.VariableDeclaration).nodes()[0]
-      .kind
+    const declarationKind = declarator.closest(j.VariableDeclaration).nodes()[0].kind
 
     if (declarationKind !== 'const') {
       // TODO: check reassignments (=, for in)
@@ -95,14 +88,8 @@ export function getVueOptions(context: Context): Collection<VueOptionsType> {
     return false
   }
 
-  function isPromiseReturningFunction(
-    fn: ASTNode
-  ): fn is FunctionExpression | ArrowFunctionExpression | ObjectMethod {
-    if (
-      !j.FunctionExpression.check(fn) &&
-      !j.ArrowFunctionExpression.check(fn) &&
-      !j.ObjectMethod.check(fn)
-    ) {
+  function isPromiseReturningFunction(fn: ASTNode): fn is FunctionExpression | ArrowFunctionExpression | ObjectMethod {
+    if (!j.FunctionExpression.check(fn) && !j.ArrowFunctionExpression.check(fn) && !j.ObjectMethod.check(fn)) {
       return false
     }
 
@@ -110,10 +97,7 @@ export function getVueOptions(context: Context): Collection<VueOptionsType> {
       return true
     }
 
-    if (
-      j.ArrowFunctionExpression.check(fn) &&
-      !j.BlockStatement.check(fn.body)
-    ) {
+    if (j.ArrowFunctionExpression.check(fn) && !j.BlockStatement.check(fn.body)) {
       return isPromiseExpression(fn.body)
     }
 
@@ -122,12 +106,7 @@ export function getVueOptions(context: Context): Collection<VueOptionsType> {
     // so empty returns are fine
     const returnStatements = j(fn.body).find(j.ReturnStatement)
 
-    return (
-      returnStatements.length > 0 &&
-      returnStatements.every((path) =>
-        !!path.node.argument ? isPromiseExpression(path.node.argument) : true
-      )
-    )
+    return returnStatements.length > 0 && returnStatements.every((path) => (!!path.node.argument ? isPromiseExpression(path.node.argument) : true))
   }
 
   // TODO:
@@ -143,7 +122,7 @@ export function getVueOptions(context: Context): Collection<VueOptionsType> {
   // <https://vuejs.org/v2/guide/components-dynamic-async.html#Handling-Loading-State>
 
   function isLikelyVueOptions(
-    comp: ASTNode | null,
+    comp: ASTNode | null | undefined,
     {
       mayBeAsyncComponent = false,
       shouldCheckProps = false,
@@ -170,32 +149,30 @@ export function getVueOptions(context: Context): Collection<VueOptionsType> {
   const isInSFC = filename.endsWith('.vue')
 
   // export default {}
-  const defaultObjectExport = root
-    .find(j.ExportDefaultDeclaration)
-    .map((path) => {
-      const decl = path.node.declaration
+  const defaultObjectExport = root.find(j.ExportDefaultDeclaration).map((path) => {
+    const decl = path.node.declaration
 
-      if (
-        isLikelyVueOptions(decl, {
-          shouldCheckProps: !isInSFC,
-          mayBeAsyncComponent: !isInSFC,
-        })
-      ) {
-        return wrapOptionsInPaths(decl)
-      }
+    if (
+      isLikelyVueOptions(decl, {
+        shouldCheckProps: !isInSFC,
+        mayBeAsyncComponent: !isInSFC,
+      })
+    ) {
+      return wrapOptionsInPaths(decl)
+    }
 
-      if (j.Identifier.check(decl)) {
-        const init = getConstDeclarationInit(decl)
-        return isLikelyVueOptions(init, {
-          shouldCheckProps: !isInSFC,
-          mayBeAsyncComponent: !isInSFC,
-        })
-          ? wrapOptionsInPaths(init)
-          : null
-      }
+    if (j.Identifier.check(decl)) {
+      const init = getConstDeclarationInit(decl)
+      return isLikelyVueOptions(init, {
+        shouldCheckProps: !isInSFC,
+        mayBeAsyncComponent: !isInSFC,
+      })
+        ? wrapOptionsInPaths(init)
+        : null
+    }
 
-      return null
-    })
+    return null
+  })
 
   paths.push(...defaultObjectExport.paths())
 
@@ -203,18 +180,11 @@ export function getVueOptions(context: Context): Collection<VueOptionsType> {
   // Vue.defineComponent({})
   const defineComponentOptions = root
     .find(j.CallExpression, (node: CallExpression) => {
-      if (
-        j.Identifier.check(node.callee) &&
-        node.callee.name === 'defineComponent'
-      ) {
+      if (j.Identifier.check(node.callee) && node.callee.name === 'defineComponent') {
         return true
       }
 
-      if (
-        j.MemberExpression.check(node.callee) &&
-        j.Identifier.check(node.callee.property) &&
-        node.callee.property.name === 'defineComponent'
-      ) {
+      if (j.MemberExpression.check(node.callee) && j.Identifier.check(node.callee.property) && node.callee.property.name === 'defineComponent') {
         return true
       }
 
@@ -313,8 +283,7 @@ export function getVueOptions(context: Context): Collection<VueOptionsType> {
     const componentsProp = node.properties.find(
       (prop) =>
         j.ObjectProperty.check(prop) &&
-        ((j.Identifier.check(prop.key) && prop.key.name === 'components') ||
-          (j.StringLiteral.check(prop.key) && prop.key.value === 'components'))
+        ((j.Identifier.check(prop.key) && prop.key.name === 'components') || (j.StringLiteral.check(prop.key) && prop.key.value === 'components'))
     ) as ObjectProperty
 
     if (!componentsProp) {
@@ -346,10 +315,7 @@ export function getVueOptions(context: Context): Collection<VueOptionsType> {
 
           if (j.Identifier.check(prop.value)) {
             const init = getConstDeclarationInit(prop.value)
-            if (
-              init &&
-              isLikelyVueOptions(init, { mayBeAsyncComponent: true })
-            ) {
+            if (init && isLikelyVueOptions(init, { mayBeAsyncComponent: true })) {
               return init
             }
           }

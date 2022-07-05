@@ -1,4 +1,4 @@
-import type { JSCodeshift, Transform, Core } from 'jscodeshift'
+import type { JSCodeshift, Transform, Core, Options } from 'jscodeshift'
 
 export type Context = {
   root: ReturnType<Core>
@@ -6,14 +6,12 @@ export type Context = {
   filename: string
 }
 
-export type ASTTransformation<Params = void> = {
-  (context: Context, params: Params): void
+export type ASTTransformation = {
+  (context: Context, params?: Options): void
 }
 
-export default function astTransformationToJSCodeshiftModule<Params = any>(
-  transformAST: ASTTransformation<Params>
-): Transform {
-  const transform: Transform = (file, api, options: Params) => {
+export default function astTransformationToJSCodeshiftModule(transformAST: ASTTransformation): Transform {
+  const transform: Transform = (file, api, options: Options) => {
     const j = api.jscodeshift
     const root = j(file.source)
 

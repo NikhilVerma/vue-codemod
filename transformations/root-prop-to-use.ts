@@ -3,23 +3,19 @@ import type { ASTTransformation } from '../src/wrapAstTransformation'
 
 import * as N from 'jscodeshift'
 
-type Params = {
-  rootPropName: string
-}
+// type Params = {
+//   rootPropName: string
+// }
 
 /**
  * Expected to be run after the `createApp` transformation.
  * Transforms expressions like `createApp({ router })` to `createApp().use(router)`
  */
-export const transformAST: ASTTransformation<Params> = (
-  { root, j },
-  { rootPropName }
-) => {
+
+//@ts-expect-error
+export const transformAST: ASTTransformation = ({ root, j }, { rootPropName }) => {
   const appRoots = root.find(j.CallExpression, (node: N.CallExpression) => {
-    if (
-      node.arguments.length === 1 &&
-      j.ObjectExpression.check(node.arguments[0])
-    ) {
+    if (node.arguments.length === 1 && j.ObjectExpression.check(node.arguments[0])) {
       if (j.Identifier.check(node.callee) && node.callee.name === 'createApp') {
         return true
       }
@@ -34,6 +30,8 @@ export const transformAST: ASTTransformation<Params> = (
         return true
       }
     }
+
+    return false
   })
 
   appRoots.replaceWith(({ node: createAppCall }) => {
@@ -48,15 +46,9 @@ export const transformAST: ASTTransformation<Params> = (
     }
 
     // @ts-ignore
-    const [{ value: pluginInstance }] = rootProps.properties.splice(
-      propertyIndex,
-      1
-    )
+    const [{ value: pluginInstance }] = rootProps.properties.splice(propertyIndex, 1)
 
-    return j.callExpression(
-      j.memberExpression(createAppCall, j.identifier('use')),
-      [pluginInstance]
-    )
+    return j.callExpression(j.memberExpression(createAppCall, j.identifier('use')), [pluginInstance])
   })
 }
 

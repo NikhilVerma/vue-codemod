@@ -19,26 +19,17 @@ export const transformAST: ASTTransformation = ({ root, j }) => {
 
   const lastVCAImportDecl = importDecl.at(-1)
   if (specifiers.length) {
-    lastVCAImportDecl.insertAfter(
-      j.importDeclaration([...specifiers.nodes()], j.stringLiteral('vue'))
-    )
+    lastVCAImportDecl.insertAfter(j.importDeclaration([...specifiers.nodes()], j.stringLiteral('vue')))
   }
   if (namespaceSpecifier.length) {
-    lastVCAImportDecl.insertAfter(
-      j.importDeclaration(
-        [...namespaceSpecifier.nodes()],
-        j.stringLiteral('vue')
-      )
-    )
+    lastVCAImportDecl.insertAfter(j.importDeclaration([...namespaceSpecifier.nodes()], j.stringLiteral('vue')))
   }
 
   importDecl.forEach((path) => {
     // the default import should be left untouched to be taken care of by `remove-vue-use`
-    path.node.specifiers = path.node.specifiers.filter((s) =>
-      j.ImportDefaultSpecifier.check(s)
-    )
+    path.node.specifiers = path.node.specifiers?.filter((s) => j.ImportDefaultSpecifier.check(s))
 
-    if (!path.node.specifiers.length) {
+    if (!path.node.specifiers?.length) {
       path.prune()
     }
   })

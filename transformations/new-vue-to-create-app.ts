@@ -13,7 +13,7 @@ type Params = {
 // FIXME: for ES modules, should use `createApp` instead of `Vue.createApp`
 // because the latter makes it difficult to tree-shake the vue module
 // FIXME: need to ensure there will be a Vue import if needed.
-export const transformAST: ASTTransformation<Params | void> = (
+export const transformAST: ASTTransformation = (
   context,
   params: Params = {
     includeMaybeComponents: true,
@@ -32,10 +32,7 @@ export const transformAST: ASTTransformation<Params | void> = (
   // new Vue() -> Vue.createApp()
   newVue.replaceWith(({ node }) => {
     const rootProps = node.arguments[0]
-    return j.callExpression(
-      j.memberExpression(j.identifier('Vue'), j.identifier('createApp')),
-      [rootProps]
-    )
+    return j.callExpression(j.memberExpression(j.identifier('Vue'), j.identifier('createApp')), [rootProps])
   })
 
   const vueCreateApp = newVue
@@ -54,29 +51,18 @@ export const transformAST: ASTTransformation<Params | void> = (
 
   // Vue.createApp({ el: '#app' }) -> Vue.createApp().mount('#app')
   vueCreateApp.replaceWith(({ node }) => {
-    if (
-      node.arguments.length !== 1 ||
-      !j.ObjectExpression.check(node.arguments[0])
-    ) {
+    if (node.arguments.length !== 1 || !j.ObjectExpression.check(node.arguments[0])) {
       return node
     }
 
     const rootProps = node.arguments[0]
-    const elIndex = rootProps.properties.findIndex(
-      (p) =>
-        j.ObjectProperty.check(p) &&
-        j.Identifier.check(p.key) &&
-        p.key.name === 'el'
-    )
+    const elIndex = rootProps.properties.findIndex((p) => j.ObjectProperty.check(p) && j.Identifier.check(p.key) && p.key.name === 'el')
 
     if (elIndex === -1) {
       return node
     }
 
-    const elProperty = rootProps.properties.splice(
-      elIndex,
-      1
-    )[0] as N.ObjectProperty
+    const elProperty = rootProps.properties.splice(elIndex, 1)[0] as N.ObjectProperty
     const elExpr = elProperty.value
     return j.callExpression(
       j.memberExpression(node, j.identifier('mount')),
@@ -98,19 +84,15 @@ export const transformAST: ASTTransformation<Params | void> = (
     new$mount.replaceWith(({ node }) => {
       const el = node.arguments[0]
 
-      const instance = (node.callee as N.MemberExpression)
-        .object as N.NewExpression
+      const instance = (node.callee as N.MemberExpression).object as N.NewExpression
       const ctor = instance.callee
 
       return j.callExpression(
         j.memberExpression(
-          j.callExpression(
-            j.memberExpression(j.identifier('Vue'), j.identifier('createApp')),
-            [
-              ctor,
-              ...instance.arguments, // additional props
-            ]
-          ),
+          j.callExpression(j.memberExpression(j.identifier('Vue'), j.identifier('createApp')), [
+            ctor,
+            ...instance.arguments, // additional props
+          ]),
           j.identifier('mount')
         ),
         [el]
@@ -138,40 +120,24 @@ export const transformAST: ASTTransformation<Params | void> = (
       return (
         n.arguments.length === 1 &&
         j.ObjectExpression.check(n.arguments[0]) &&
-        n.arguments[0].properties.some(
-          (prop) =>
-            j.ObjectProperty.check(prop) &&
-            j.Identifier.check(prop.key) &&
-            prop.key.name === 'el'
-        )
+        n.arguments[0].properties.some((prop) => j.ObjectProperty.check(prop) && j.Identifier.check(prop.key) && prop.key.name === 'el')
       )
     })
 
     newWithEl.replaceWith(({ node }) => {
       const rootProps = node.arguments[0] as N.ObjectExpression
-      const elIndex = rootProps.properties.findIndex(
-        (p) =>
-          j.ObjectProperty.check(p) &&
-          j.Identifier.check(p.key) &&
-          p.key.name === 'el'
-      )
-      const elProperty = rootProps.properties.splice(
-        elIndex,
-        1
-      )[0] as N.ObjectProperty
+      const elIndex = rootProps.properties.findIndex((p) => j.ObjectProperty.check(p) && j.Identifier.check(p.key) && p.key.name === 'el')
+      const elProperty = rootProps.properties.splice(elIndex, 1)[0] as N.ObjectProperty
       const elExpr = elProperty.value
 
       const ctor = node.callee
       return j.callExpression(
         j.memberExpression(
-          j.callExpression(
-            j.memberExpression(j.identifier('Vue'), j.identifier('createApp')),
-            [
-              ctor,
-              // additional props, and skip empty objects
-              ...(rootProps.properties.length > 0 ? [rootProps] : []),
-            ]
-          ),
+          j.callExpression(j.memberExpression(j.identifier('Vue'), j.identifier('createApp')), [
+            ctor,
+            // additional props, and skip empty objects
+            ...(rootProps.properties.length > 0 ? [rootProps] : []),
+          ]),
           j.identifier('mount')
         ),
         // @ts-ignore I'm not sure what the edge cases are

@@ -1,37 +1,28 @@
 import wrap from '../src/wrapAstTransformation'
 import type { ASTTransformation } from '../src/wrapAstTransformation'
-import type {
-  ImportSpecifier,
-  ImportDefaultSpecifier,
-  ImportNamespaceSpecifier,
-} from 'jscodeshift'
+import type { ImportSpecifier, ImportDefaultSpecifier, ImportNamespaceSpecifier } from 'jscodeshift'
 
-type DefaultSpecifierParam = {
-  type: 'default'
-  local: string
-}
-type NamedSpecifierParam = {
-  type: 'named'
-  imported: string
-  local?: string
-}
-type NamespaceSpecifierParam = {
-  type: 'namespace'
-  local: string
-}
+// type DefaultSpecifierParam = {
+//   type: 'default'
+//   local: string
+// }
+// type NamedSpecifierParam = {
+//   type: 'named'
+//   imported: string
+//   local?: string
+// }
+// type NamespaceSpecifierParam = {
+//   type: 'namespace'
+//   local: string
+// }
 
-type Params = {
-  specifier:
-    | DefaultSpecifierParam
-    | NamedSpecifierParam
-    | NamespaceSpecifierParam
-  source: string
-}
+// type Params = {
+//   specifier: DefaultSpecifierParam | NamedSpecifierParam | NamespaceSpecifierParam
+//   source: string
+// }
 
-export const transformAST: ASTTransformation<Params> = (
-  { root, j },
-  { specifier, source }
-) => {
+//@ts-expect-error
+export const transformAST: ASTTransformation = ({ root, j }, { specifier, source }) => {
   let localBinding: string
   if (specifier.type === 'named') {
     localBinding = specifier.local || specifier.imported
@@ -40,13 +31,8 @@ export const transformAST: ASTTransformation<Params> = (
   }
 
   const duplicate = root.find(j.ImportDeclaration, {
-    specifiers: (
-      arr: Array<
-        ImportSpecifier | ImportDefaultSpecifier | ImportNamespaceSpecifier
-      >
-    ) =>
-      // @ts-ignore there's a bug in ast-types definition, the `local` should be non-nullable
-      arr.some((s) => s.local.name === localBinding),
+    //@ts-expect-error
+    specifiers: (arr: Array<ImportSpecifier | ImportDefaultSpecifier | ImportNamespaceSpecifier>) => arr.some((s) => s.local?.name === localBinding),
     source: {
       value: source,
     },
@@ -59,10 +45,7 @@ export const transformAST: ASTTransformation<Params> = (
   if (specifier.type === 'default') {
     newImportSpecifier = j.importDefaultSpecifier(j.identifier(specifier.local))
   } else if (specifier.type === 'named') {
-    newImportSpecifier = j.importSpecifier(
-      j.identifier(specifier.imported),
-      j.identifier(localBinding)
-    )
+    newImportSpecifier = j.importSpecifier(j.identifier(specifier.imported), j.identifier(localBinding))
   } else {
     // namespace
     newImportSpecifier = j.importNamespaceSpecifier(j.identifier(localBinding))
@@ -73,17 +56,11 @@ export const transformAST: ASTTransformation<Params> = (
       value: source,
     },
   })
-  if (
-    matchedDecl.length &&
-    !matchedDecl.find(j.ImportNamespaceSpecifier).length
-  ) {
+  if (matchedDecl.length && !matchedDecl.find(j.ImportNamespaceSpecifier).length) {
     // add new specifier to the existing import declaration
     matchedDecl.get(0).node.specifiers.push(newImportSpecifier)
   } else {
-    const newImportDecl = j.importDeclaration(
-      [newImportSpecifier],
-      j.stringLiteral(source)
-    )
+    const newImportDecl = j.importDeclaration([newImportSpecifier], j.stringLiteral(source))
 
     const lastImportDecl = root.find(j.ImportDeclaration).at(-1)
     if (lastImportDecl.length) {
