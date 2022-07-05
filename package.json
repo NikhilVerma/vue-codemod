@@ -1,6 +1,6 @@
 {
   "name": "@cldcvr/vue-codemod",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "Vue codemod scripts",
   "main": "dist/index.js",
   "bin": "./dist/bin/vue-codemod.js",
