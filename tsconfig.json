@@ -3,11 +3,12 @@
     "baseUrl": ".",
     "outDir": "dist",
     "declaration": true,
-    "sourceMap": false,
+    "sourceMap": true,
     "target": "ES2018",
     "module": "commonjs",
     "moduleResolution": "node",
-    "allowJs": false,
+    "allowJs": true,
+    "strict": true,
     "noUnusedLocals": true,
     "strictNullChecks": true,
     "noImplicitAny": true,
@@ -17,8 +18,8 @@
     "removeComments": false,
     "jsx": "preserve",
     "lib": ["ES2018", "DOM"],
-    "types": ["jest", "jscodeshift", "node"],
     "rootDir": "."
   },
-  "exclude": ["dist", "playground"]
+  "include": ["src/**/*.*", "transformations/**/*.*"],
+  "exclude": ["dist", "playground", "node_modules"]
 }
