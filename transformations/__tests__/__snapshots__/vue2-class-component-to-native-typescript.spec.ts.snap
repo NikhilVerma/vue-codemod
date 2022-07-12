@@ -5,19 +5,30 @@ exports[`removes vue-class-component2 1`] = `
 import TestComponent2 from './TestComponent2/TestComponent2.vue';
 import { ExampleType } from './ExampleType';
 
-import { defineComponent } from \\"vue\\";
+import { defineComponent, PropType } from \\"vue\\";
+
+type ABC = { a: string };
 
 export default defineComponent({
+  name: \\"MyComponent\\",
+
   components: {
     TestComponent1,
     TestComponent2,
   },
 
-  name: \\"TestComponent\\",
-
   props: {
+    example2: {
+      type: Array as PropType<ExampleType[]>
+    },
+
+    project: {
+      type: Object as PropType<project>,
+      default: () => undefined
+    },
+
     example: {
-      type: Object as PropType<ExampleType[]>,
+      type: Array as PropType<ExampleType[]>,
       required: true,
       default: () => true
     },
@@ -30,17 +41,41 @@ export default defineComponent({
     prop2: {
       type: Number as PropType<number>,
       required: true,
-      default: () => ({})
+      default: () => 0
+    },
+
+    env: {
+      type: Object as PropType<environment | null>
+    },
+
+    arr: {
+      type: Array as PropType<environment[]>,
+      required: true
+    },
+
+    assignTo: {
+      type: String as PropType<\\"project\\" | \\"environment\\">,
+      required: true
+    },
+
+    assignTo2: {
+      type: Object as PropType<{ b: 6} | ABC>,
+      required: true
     }
   },
 
   data: () => ({
-    data1: true
+    data1: true,
+    nullable: null as string | null
   }),
 
   computed: {
-    computed1() {
+    computed1(): boolean {
       return !!this.prop2;
+    },
+
+    someProp(): string {
+      return someStore.someValue;
     }
   },
 
@@ -57,6 +92,12 @@ export default defineComponent({
 
   created() {
     console.log('created hook')
+  },
+
+  methods: {
+    method1() {
+      console.log('Example method')
+    }
   }
 });"
 `;

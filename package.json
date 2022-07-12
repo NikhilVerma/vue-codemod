@@ -1,6 +1,6 @@
 {
   "name": "@cldcvr/vue-codemod",
-  "version": "0.0.11",
+  "version": "0.0.12",
   "description": "Vue codemod scripts",
   "main": "dist/index.js",
   "bin": "./dist/bin/vue-codemod.js",
@@ -24,12 +24,12 @@
     "@babel/core": "^7.10.3",
     "@babel/preset-env": "^7.10.3",
     "@babel/types": "^7.12.12",
-    "@types/jscodeshift": "^0.11.0",
+    "@types/jscodeshift": "^0.11.5",
     "@vue/compiler-core": "^3.0.5",
     "@vue/compiler-dom": "^3.0.5",
     "debug": "^4.1.1",
     "globby": "^11.0.2",
-    "jscodeshift": "^0.11.0",
+    "jscodeshift": "^0.13.1",
     "lru-cache": "^6.0.0",
     "source-map": "^0.6.1",
     "yargs": "^16.2.0"
@@ -55,7 +55,13 @@
     "testPathIgnorePatterns": [
       "<rootDir>/dist/",
       "<rootDir>/node_modules/"
-    ]
+    ],
+    "globals": {
+      "ts-jest": {
+        "diagnostics": false,
+        "isolatedModules": true
+      }
+    }
   },
   "prettier": {
     "semi": false,
