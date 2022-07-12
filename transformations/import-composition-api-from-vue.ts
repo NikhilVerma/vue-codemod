@@ -34,6 +34,7 @@ export const transformAST: ASTTransformation = ({ root, j }) => {
 
   importDecl.forEach((path) => {
     // the default import should be left untouched to be taken care of by `remove-vue-use`
+      //@ts-expect-error
     path.node.specifiers = path.node.specifiers.filter((s) =>
       j.ImportDefaultSpecifier.check(s)
     )

@@ -1,0 +1,62 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`removes vue-class-component2 1`] = `
+"import TestComponent1 from './TestComponent1/TestComponent1.vue';
+import TestComponent2 from './TestComponent2/TestComponent2.vue';
+import { ExampleType } from './ExampleType';
+
+import { defineComponent } from \\"vue\\";
+
+export default defineComponent({
+  components: {
+    TestComponent1,
+    TestComponent2,
+  },
+
+  name: \\"TestComponent\\",
+
+  props: {
+    example: {
+      type: Object as PropType<ExampleType[]>,
+      required: true,
+      default: () => true
+    },
+
+    prop1: {
+      type: String as PropType<string>,
+      required: true
+    },
+
+    prop2: {
+      type: Number as PropType<number>,
+      required: true,
+      default: () => ({})
+    }
+  },
+
+  data: () => ({
+    data1: true
+  }),
+
+  computed: {
+    computed1() {
+      return !!this.prop2;
+    }
+  },
+
+  watch: {
+    prop1: {
+      deep: true,
+      immediate: true,
+
+      handler() {
+        console.log('Example watcher')
+      }
+    }
+  },
+
+  created() {
+    console.log('created hook')
+  }
+});"
+`;

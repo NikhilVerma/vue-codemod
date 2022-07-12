@@ -15,6 +15,7 @@ export const transformAST: ASTTransformation<Params> = (
   { root, j },
   { rootPropName }
 ) => {
+  //@ts-expect-error
   const appRoots = root.find(j.CallExpression, (node: N.CallExpression) => {
     if (
       node.arguments.length === 1 &&

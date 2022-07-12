@@ -12,6 +12,7 @@ import type * as N from 'jscodeshift'
  * move all other rootProps to the second argument of `createApp`
  */
 export const transformAST: ASTTransformation = ({ root, j }) => {
+  //@ts-expect-error
   const appRoots = root.find(j.CallExpression, (node: N.CallExpression) => {
     if (
       node.arguments.length === 1 &&

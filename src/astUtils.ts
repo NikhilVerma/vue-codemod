@@ -186,6 +186,7 @@ export function getVueOptions(context: Context): Collection<VueOptionsType> {
 
       if (j.Identifier.check(decl)) {
         const init = getConstDeclarationInit(decl)
+        //@ts-expect-error
         return isLikelyVueOptions(init, {
           shouldCheckProps: !isInSFC,
           mayBeAsyncComponent: !isInSFC,
