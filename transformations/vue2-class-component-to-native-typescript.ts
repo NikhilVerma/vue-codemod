@@ -61,6 +61,12 @@ type VueClassProperty = ClassProperty & {
 type VuexMappingItem = { remoteName: string; localName: string }[]
 
 export const transformAST: ASTTransformation = (context: Context) => {
+  const componentDecorator = context.root.find(ClassDeclaration)
+
+  if (componentDecorator.length === 0) {
+    return
+  }
+
   removeImports(context)
   classToOptions(context)
 }
@@ -348,6 +354,7 @@ function classToOptions(context: Context) {
       if (!propDecorator) return
 
       const decoratorPropArgument = propDecorator.expression?.arguments?.[0]!
+      let requiredProp = null
       let rawType: any
 
       if (decoratorPropArgument?.type === 'Identifier') {
@@ -358,6 +365,11 @@ function classToOptions(context: Context) {
         const typeKind = propDecorator.expression?.arguments?.[0]?.properties?.find(
           (p) => p.key.name === 'type'
         )
+
+        requiredProp = propDecorator.expression?.arguments?.[0]?.properties?.find(
+          (p) => p.key.name === 'required'
+        )
+
         if (typeKind) {
           rawType = typeKind.value.name
         } else {
@@ -366,6 +378,7 @@ function classToOptions(context: Context) {
       }
 
       let type: any
+      let isSimpleIdentifier = false
 
       if (rawType.type === 'ArrayExpression') {
         type = rawType
@@ -374,6 +387,8 @@ function classToOptions(context: Context) {
 
         if (['Any'].includes(keyword)) {
           keyword = 'Object'
+        } else {
+          isSimpleIdentifier = true
         }
 
         type = identifier(keyword)
@@ -387,20 +402,24 @@ function classToOptions(context: Context) {
             unionType.type === 'TSUndefinedKeyword'
         )
 
-        prop.optional = isOptional
-
         const rawUnionType = rawUnionTypes[0]
 
         if (rawUnionType.type === 'TSTypeReference') {
           type = identifier('Object')
         } else if (rawUnionType.type === 'TSLiteralType') {
+          isSimpleIdentifier = true
           type = identifier(
             rawUnionType.literal.type === 'StringLiteral' ? 'String' : 'Number'
           )
         } else if (rawUnionType.type === 'TSNumberKeyword') {
+          isSimpleIdentifier = true
           type = identifier('Number')
         } else if (rawUnionType.type === 'TSStringKeyword') {
+          isSimpleIdentifier = true
           type = identifier('String')
+        } else if (rawUnionType.type === 'TSBooleanKeyword') {
+          isSimpleIdentifier = true
+          type = identifier('Boolean')
         } else {
           type = identifier('Object')
         }
@@ -408,24 +427,37 @@ function classToOptions(context: Context) {
         type = identifier('Array')
       } else if (rawType === 'TSTypeReference' || rawType.match(/^TS/)) {
         type = identifier('Object')
+      } else if (
+        rawType === 'String' ||
+        rawType === 'Number' ||
+        rawType === 'Boolean'
+      ) {
+        isSimpleIdentifier = true
+        type = identifier(rawType)
       } else {
         type = identifier(rawType)
       }
 
       needsPropTypeImport = true
 
-      const typedProp = tsAsExpression(
-        type,
-        tsTypeReference(
-          identifier('PropType'),
-          tsTypeParameterInstantiation([prop.typeAnnotation?.typeAnnotation])
-        )
-      )
-
-      const isRequired = !prop.optional
+      const isRequired = requiredProp ? requiredProp.value.value : false
 
       const propProperties: Property[] = [
-        property('init', identifier('type'), typedProp),
+        property(
+          'init',
+          identifier('type'),
+          isSimpleIdentifier
+            ? type
+            : tsAsExpression(
+                type,
+                tsTypeReference(
+                  identifier('PropType'),
+                  tsTypeParameterInstantiation([
+                    prop.typeAnnotation?.typeAnnotation,
+                  ])
+                )
+              )
+        ),
       ]
 
       if (isRequired) {
@@ -453,9 +485,7 @@ function classToOptions(context: Context) {
         }
 
         if (theValidator) {
-          propProperties.push(
-            property('init', identifier('validator'), theValidator.value)
-          )
+          propProperties.push(theValidator)
         }
       }
       const propNode = property(

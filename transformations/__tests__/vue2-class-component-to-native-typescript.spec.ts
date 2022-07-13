@@ -1,13 +1,5 @@
-import { defineInlineTest, defineSnapshotTest } from 'jscodeshift/src/testUtils'
+import { defineSnapshotTest } from 'jscodeshift/src/testUtils'
 import transform from '../vue2-class-component-to-native-typescript'
-
-defineInlineTest(
-  transform,
-  {},
-  `import { Component } from 'vue-class-component'`,
-  `import { defineComponent } from "vue";`,
-  'removes vue-class-component'
-)
 
 defineSnapshotTest(
   // { default: transform, parser: 'tsx' },
@@ -31,23 +23,44 @@ type ABC = { a: string };
   },
 })
 export default class TestComponent extends Vue {
-  @Prop example2?: ExampleType[];
+  // @Prop arrTypeSimpleDecorator?: ExampleType[];
+  @Prop arrTypeSimpleDecorator?: ExampleType[];
 
-  @Prop({ default: undefined }) project?: project;
+  // @Prop({ default: undefined }) undefinedDefault?: project;
+  @Prop({ default: undefined }) undefinedDefault?: project;
 
-  @Prop({ default: true }) example!: ExampleType[];
+  // @Prop({ default: true }) propWithDefault!: ExampleType[];
+  @Prop({ default: true }) propWithDefault!: ExampleType[];
 
-  @Prop() prop1!: string;
+  // @Prop() forcedString!: string;
+  @Prop() forcedString!: string;
 
-  @Prop({ default: 0 }) prop2!: number;
+  // @Prop({ default: 0 }) numberWithDefault!: number;
+  @Prop({ default: 0 }) numberWithDefault!: number;
 
-  @Prop({ required: true }) env!: environment | null;
+  // @Prop({ required: true }) unionTypeRequired!: someType | null;
+  @Prop({ required: true }) unionTypeRequired!: someType | null;
 
-  @Prop({ type: Array, required: true }) arr!: environment[]
+  // @Prop({ type: Array, required: true }) arrayTypeRequired!: environment[]
+  @Prop({ type: Array, required: true }) arrayTypeRequired!: environment[]
 
-  @Prop({ required: true }) assignTo!: "project" | "environment";
+  // @Prop({ required: true }) stringUnionRequired!: "project" | "environment";
+  @Prop({ required: true }) stringUnionRequired!: "project" | "environment";
 
-  @Prop({ required: true }) assignTo2!: { b: 6} | ABC;
+  // @Prop({ required: true }) complexUnionRequired!: { b: 6 } | ABC;
+  @Prop({ required: true }) complexUnionRequired!: { b: 6 } | ABC;
+
+  // @Prop({ required: false, type: String, default: "+ ADD NEW" }) optionalStringWithDefault!: string;
+  @Prop({ required: false, type: String, default: "+ ADD NEW" }) optionalStringWithDefault!: string;
+
+	@Prop({
+		type: String,
+		default: "aggressive",
+		validator(value: string): boolean {
+			return ["aggressive", "passive"].indexOf(value) !== -1;
+		}
+	})
+	readonly validationProp?: Mode;
 
   @Watch('prop1', { deep: true, immediate: true})
   onProp1Changed() {
@@ -75,5 +88,5 @@ export default class TestComponent extends Vue {
   }
 }
 `,
-  'removes vue-class-component2'
+  'removes vue-class-component'
 )

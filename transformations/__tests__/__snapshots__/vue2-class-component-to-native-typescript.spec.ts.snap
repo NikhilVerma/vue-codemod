@@ -1,6 +1,6 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`removes vue-class-component2 1`] = `
+exports[`removes vue-class-component 1`] = `
 "import TestComponent1 from './TestComponent1/TestComponent1.vue';
 import TestComponent2 from './TestComponent2/TestComponent2.vue';
 import { ExampleType } from './ExampleType';
@@ -18,49 +18,71 @@ export default defineComponent({
   },
 
   props: {
-    example2: {
+    // @Prop arrTypeSimpleDecorator?: ExampleType[];
+    arrTypeSimpleDecorator: {
       type: Array as PropType<ExampleType[]>
     },
 
-    project: {
+    // @Prop({ default: undefined }) undefinedDefault?: project;
+    undefinedDefault: {
       type: Object as PropType<project>,
       default: () => undefined
     },
 
-    example: {
+    // @Prop({ default: true }) propWithDefault!: ExampleType[];
+    propWithDefault: {
       type: Array as PropType<ExampleType[]>,
-      required: true,
       default: () => true
     },
 
-    prop1: {
-      type: String as PropType<string>,
-      required: true
+    // @Prop() forcedString!: string;
+    forcedString: {
+      type: String
     },
 
-    prop2: {
-      type: Number as PropType<number>,
-      required: true,
+    // @Prop({ default: 0 }) numberWithDefault!: number;
+    numberWithDefault: {
+      type: Number,
       default: () => 0
     },
 
-    env: {
-      type: Object as PropType<environment | null>
+    // @Prop({ required: true }) unionTypeRequired!: someType | null;
+    unionTypeRequired: {
+      type: Object as PropType<someType | null>,
+      required: true
     },
 
-    arr: {
+    // @Prop({ type: Array, required: true }) arrayTypeRequired!: environment[]
+    arrayTypeRequired: {
       type: Array as PropType<environment[]>,
       required: true
     },
 
-    assignTo: {
-      type: String as PropType<\\"project\\" | \\"environment\\">,
+    // @Prop({ required: true }) stringUnionRequired!: \\"project\\" | \\"environment\\";
+    stringUnionRequired: {
+      type: String,
       required: true
     },
 
-    assignTo2: {
-      type: Object as PropType<{ b: 6} | ABC>,
+    // @Prop({ required: true }) complexUnionRequired!: { b: 6 } | ABC;
+    complexUnionRequired: {
+      type: Object as PropType<{ b: 6 } | ABC>,
       required: true
+    },
+
+    // @Prop({ required: false, type: String, default: \\"+ ADD NEW\\" }) optionalStringWithDefault!: string;
+    optionalStringWithDefault: {
+      type: String,
+      default: () => \\"+ ADD NEW\\"
+    },
+
+    validationProp: {
+      type: String,
+      default: () => \\"aggressive\\",
+
+      validator(value: string): boolean {
+          return [\\"aggressive\\", \\"passive\\"].indexOf(value) !== -1;
+      }
     }
   },
 
