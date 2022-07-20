@@ -1,20 +1,42 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`removes vue-class-component 1`] = `
-"import TestComponent1 from './TestComponent1/TestComponent1.vue';
-import TestComponent2 from './TestComponent2/TestComponent2.vue';
-import { ExampleType } from './ExampleType';
+"import TestComponent1 from './TestComponent1/TestComponent1.vue'
+import TestComponent2 from './TestComponent2/TestComponent2.vue'
+import { ExampleType } from './ExampleType'
 
 import { defineComponent, PropType } from \\"vue\\";
 
-type ABC = { a: string };
+type ABC = { a: string }
+type StrUnion = 'abc' | 'bcd'
+type Mode = unknown
+type environment = unknown
+type project = unknown
+type someType = unknown
 
 export default defineComponent({
-  name: \\"MyComponent\\",
+  name: 'MyComponent',
 
   components: {
     TestComponent1,
     TestComponent2,
+  },
+
+  provide() {
+    return {
+      foo: this.foo,
+      bar: this.baz,
+      showModal: this.provideMethod
+    };
+  },
+
+  inject: {
+    foo: \\"foo\\",
+    bar: \\"bar\\",
+    optional: \\"optional\\",
+    baz: \\"baz\\",
+    injectMethod: \\"injectMethod\\",
+    optional: \\"optional\\"
   },
 
   props: {
@@ -60,7 +82,7 @@ export default defineComponent({
 
     // @Prop({ required: true }) stringUnionRequired!: \\"project\\" | \\"environment\\";
     stringUnionRequired: {
-      type: String,
+      type: String as PropType<'project' | 'environment'>,
       required: true
     },
 
@@ -73,31 +95,56 @@ export default defineComponent({
     // @Prop({ required: false, type: String, default: \\"+ ADD NEW\\" }) optionalStringWithDefault!: string;
     optionalStringWithDefault: {
       type: String,
-      default: () => \\"+ ADD NEW\\"
+      default: () => '+ ADD NEW'
+    },
+
+    // @Prop({ required: true, type: String }) strUnion!: StrUnion;
+    strUnion: {
+      type: String as PropType<StrUnion>,
+      required: true
     },
 
     validationProp: {
-      type: String,
-      default: () => \\"aggressive\\",
+      type: String as PropType<Mode>,
+      default: () => 'aggressive',
 
       validator(value: string): boolean {
-          return [\\"aggressive\\", \\"passive\\"].indexOf(value) !== -1;
+        return ['aggressive', 'passive'].indexOf(value) !== -1
       }
+    },
+
+    // @Prop({ required: true, type: Function }) fnProp!: (arg: str) => void;
+    fnProp: {
+      type: Function as PropType<(arg: string) => void>,
+      required: true
+    },
+
+    // @Prop({ required: true, type: Function }) fnProp!: (arg: str) => void;
+    fnPropDetect: {
+      type: Function as PropType<(arg: string) => void>,
+      required: true
+    },
+
+    width: {
+      type: String,
+      default: () => 'auto'
     }
   },
 
   data: () => ({
     data1: true,
-    nullable: null as string | null
+    nullable: null as string | null,
+    foo: 'foo',
+    baz: 'bar'
   }),
 
   computed: {
     computed1(): boolean {
-      return !!this.prop2;
+      return !!this.prop2
     },
 
     someProp(): string {
-      return someStore.someValue;
+      return someStore.someValue
     }
   },
 
@@ -117,7 +164,16 @@ export default defineComponent({
   },
 
   methods: {
-    method1() {
+    provideMethod(target: string, scopeIds?: string[]) {
+      const modal = this.$refs.tableModal as AddVariableModal
+      modal.openDialog(target, scopeIds ?? [])
+    },
+
+    method1(): number {
+      console.log('Example method')
+    },
+
+    method2(): string {
       console.log('Example method')
     }
   }

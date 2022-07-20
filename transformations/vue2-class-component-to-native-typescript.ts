@@ -1,13 +1,13 @@
 //@ts-nocheck
 import { NodePath } from '@babel/core'
 import {
+  ArrayExpression,
   arrayExpression,
   arrowFunctionExpression,
   blockStatement,
   booleanLiteral,
   callExpression,
-  CallExpression,
-  ClassDeclaration,
+  ClassDeclaration as ClassDeclarationConstructor,
   ClassMethod,
   ClassProperty,
   Decorator,
@@ -17,7 +17,6 @@ import {
   Identifier,
   identifier,
   ImportDeclaration,
-  literal,
   memberExpression,
   ObjectExpression,
   objectExpression,
@@ -32,36 +31,37 @@ import {
   stringLiteral,
   thisExpression,
   tsAsExpression,
+  TSType,
   tsTypeParameterInstantiation,
   tsTypeReference,
   VariableDeclaration,
 } from 'jscodeshift'
+
+import type { TSTypeKind } from 'ast-types/gen/kinds'
+
 import type { ASTTransformation, Context } from '../src/wrapAstTransformation'
 import wrap from '../src/wrapAstTransformation'
 import { transformAST as addImport } from './add-import'
 
 type VueClassProperty = ClassProperty & {
-  optional: boolean
-  key: {
-    name: string
+  decorators?: Decorator[]
+}
+
+interface ClassDeclaration {
+  decorators?: Decorator[]
+}
+declare module 'ast-types/gen/namedTypes' {
+  namespace namedTypes {
+    interface ClassProperty {
+      decorators?: Decorator[]
+    }
   }
-  decorators: ({
-    expression: {
-      callee: Identifier
-      arguments: (
-        | ({
-            properties: Property[]
-          } & ObjectExpression)
-        | Identifier
-      )[]
-    } & CallExpression
-  } & Decorator)[]
 }
 
 type VuexMappingItem = { remoteName: string; localName: string }[]
 
 export const transformAST: ASTTransformation = (context: Context) => {
-  const componentDecorator = context.root.find(ClassDeclaration)
+  const componentDecorator = context.root.find(ClassDeclarationConstructor)
 
   if (componentDecorator.length === 0) {
     return
@@ -140,77 +140,40 @@ function classToOptions(context: Context) {
   const prevDefaultExportDeclaration = context.root.find(
     ExportDefaultDeclaration
   )
-  const newDefaultExportDeclaration = exportDefaultDeclaration(
-    identifier('default')
-  )
-  const prevClass = prevDefaultExportDeclaration.find(ClassDeclaration)
-  const prevClassProperties = prevDefaultExportDeclaration.find(ClassProperty)
-  const prevClassComputed = prevDefaultExportDeclaration.find(ClassMethod, {
-    kind: 'get',
-  })
 
-  const prevClassMethods = prevDefaultExportDeclaration.find(
-    ClassMethod,
-    (dec) =>
-      Boolean(
-        dec.kind === 'method' &&
-          'name' in dec.key &&
-          dec.key.name &&
-          !vueHooks.includes(dec.key.name as string) &&
-          ((dec.decorators?.[0]?.expression &&
-            'callee' in dec.decorators?.[0]?.expression &&
-            'name' in dec.decorators?.[0]?.expression.callee &&
-            dec.decorators?.[0]?.expression?.callee?.name !== 'Watch' &&
-            dec.decorators?.[0]?.expression?.callee?.name !== 'Emit') ||
-            !dec.decorators?.[0]?.expression)
-      )
+  const prevClass = prevDefaultExportDeclaration.find(
+    ClassDeclarationConstructor
   )
 
-  const prevClassHooks = prevDefaultExportDeclaration.find(
-    ClassMethod,
-    (dec) =>
-      dec.kind === 'method' && vueHooks.includes((dec.key as Identifier).name)
-  )
+  let newClassProperties: ObjectExpression['properties'] = []
 
-  const prevClassWatches = prevDefaultExportDeclaration.find(
-    ClassMethod,
-    (dec) =>
+  if (prevClass.length > 0) {
+    ;(prevClass.get(0) as NodePath<ClassDeclaration>).node.decorators?.forEach(
+      (d) => {
+        if (
+          d.expression.type === 'CallExpression' &&
+          d.expression.callee.type === 'Identifier' &&
+          d.expression.callee.name === 'Component' &&
+          d.expression.arguments[0].type === 'ObjectExpression'
+        ) {
+          newClassProperties = newClassProperties.concat(
+            d.expression.arguments[0].properties
+          )
+        }
+      }
+    )
+  }
+
+  if (
+    prevDefaultExportDeclaration.find(ClassMethod, (dec) =>
       Boolean(
         dec.decorators?.[0]?.expression &&
           'callee' in dec.decorators?.[0]?.expression &&
           'name' in dec.decorators?.[0]?.expression.callee &&
-          dec.decorators?.[0]?.expression?.callee?.name === 'Watch'
+          dec.decorators?.[0]?.expression?.callee?.name === 'Emit'
       )
-  )
-
-  const prevClassEmits = prevDefaultExportDeclaration.find(ClassMethod, (dec) =>
-    Boolean(
-      dec.decorators?.[0]?.expression &&
-        'callee' in dec.decorators?.[0]?.expression &&
-        'name' in dec.decorators?.[0]?.expression.callee &&
-        dec.decorators?.[0]?.expression?.callee?.name === 'Emit'
-    )
-  )
-
-  const componentDecorator =
-    prevClass.length > 0
-      ? (prevClass.get(0) as NodePath<ClassMethod>).node.decorators?.find(
-          (d) =>
-            d.expression.callee?.name === 'Component' ||
-            d.expression.name === 'Component'
-        )
-      : null
-
-  const newClassProperties =
-    componentDecorator?.expression &&
-    'arguments' in componentDecorator?.expression &&
-    'properties' in componentDecorator?.expression?.arguments?.[0]
-      ? componentDecorator?.expression?.arguments?.[0]?.properties
-      : []
-
-  const variableDeclarations = context.root.find(VariableDeclaration)
-
-  if (prevClassEmits.length) {
+    ).length
+  ) {
     throw new Error('@Emit decorator is not supported!')
   }
 
@@ -218,7 +181,7 @@ function classToOptions(context: Context) {
   const data: Property[] = []
   const mixins: string[] = []
   const refs: VueClassProperty[] = []
-  const provides: VueClassProperty[] = []
+  const provides: (ClassProperty | ClassMethod)[] = []
   const injects: VueClassProperty[] = []
   let needsPropTypeImport = false
 
@@ -236,15 +199,20 @@ function classToOptions(context: Context) {
   // We need this object as a reference for vuex accessors (actions/getters/etc) class members decorators
   const vuexNamespaceMap: Record<string, string> = {}
 
-  context.root.find(ClassDeclaration, (dec) => {
-    if (dec.superClass?.callee?.name === 'Mixins') {
+  context.root.find(ClassDeclarationConstructor, (dec) => {
+    if (
+      dec.superClass?.type === 'CallExpression' &&
+      dec.superClass.callee.type === 'Identifier' &&
+      dec.superClass.callee.name === 'Mixins' &&
+      dec.superClass.arguments[0].type === 'Identifier'
+    ) {
       mixins.push(dec.superClass.arguments[0].name)
     }
 
     return false
   })
 
-  if (variableDeclarations.length) {
+  if (context.root.find(VariableDeclaration).length) {
     context.root
       .get(0)
       .node.program.body.filter(
@@ -264,6 +232,7 @@ function classToOptions(context: Context) {
 
         vuexNamespaceMap[declaration.id.name] =
           declaration.init.arguments[0].value
+
         context.root
           .find(
             VariableDeclaration,
@@ -274,28 +243,53 @@ function classToOptions(context: Context) {
       })
   }
 
-  prevClassProperties.forEach((p) => {
-    const prop = p.node as VueClassProperty
+  prevDefaultExportDeclaration.find(ClassProperty).forEach((p) => {
+    const prop = p.node
 
-    if (prop.decorators) {
-      const accessorType =
-        prop.decorators[0].expression.type === 'Identifier'
-          ? prop.decorators[0].expression.name
-          : prop.decorators[0].expression.callee?.property
-          ? prop.decorators[0].expression.callee?.property?.name
-          : prop.decorators[0].expression.callee?.name
+    if (
+      prop.decorators &&
+      prop.decorators[0] &&
+      prop.key.type === 'Identifier'
+    ) {
+      const firstDecorator = prop.decorators[0]
 
-      const decoratorName =
-        prop.decorators[0].expression.callee?.object?.name || 'global'
+      let accessorType: string | null = null
+      let decoratorName = 'global'
+
+      // @Prop someValue: boolean
+      if (firstDecorator.expression.type === 'Identifier') {
+        accessorType = firstDecorator.expression.name
+        // @Prop({ default: false }) someValue: boolean
+      } else if (
+        firstDecorator.expression.type === 'CallExpression' &&
+        firstDecorator.expression.callee.type === 'Identifier'
+      ) {
+        accessorType = firstDecorator.expression.callee.name
+        // @someModule.Getter('foo') moduleGetterFoo
+      } else if (
+        firstDecorator.expression.type === 'CallExpression' &&
+        firstDecorator.expression.callee.type === 'MemberExpression' &&
+        firstDecorator.expression.callee.property.type === 'Identifier'
+      ) {
+        accessorType = firstDecorator.expression.callee.property.name
+
+        if (firstDecorator.expression.callee.object.type === 'Identifier') {
+          decoratorName = firstDecorator.expression.callee.object.name
+        }
+      }
 
       const localName = prop.key.name
 
       const argumentValue =
-        prop.decorators[0].expression.arguments?.[0]?.value || localName
+        firstDecorator.expression.arguments?.[0]?.value || localName
+
+      if (!accessorType) {
+        return
+      }
 
       if (!supportedDecorators.includes(accessorType)) {
         // Your decorators to skip
-        if (accessorType.includes(ignoredDecorators)) {
+        if (ignoredDecorators.includes(accessorType)) {
           return
         }
         throw new Error(`Decorator ${accessorType} is not supported.`)
@@ -348,117 +342,124 @@ function classToOptions(context: Context) {
       // Prop
       const propDecorator = prop.decorators.find(
         (d) =>
-          d.expression.callee?.name === 'Prop' || d.expression?.name === 'Prop'
+          ('callee' in d.expression &&
+            d.expression.callee.type === 'Identifier' &&
+            d.expression.callee?.name === 'Prop') ||
+          ('name' in d.expression && d.expression.name === 'Prop')
       )
 
       if (!propDecorator) return
 
-      const decoratorPropArgument = propDecorator.expression?.arguments?.[0]!
-      let requiredProp = null
-      let rawType: any
+      const decoratorPropArgument =
+        propDecorator.expression.type === 'CallExpression'
+          ? propDecorator.expression.arguments[0]
+          : null
 
+      let requiredProp: ObjectProperty | undefined = undefined
+      let type: ArrayExpression | Identifier | null = null
+
+      // @Prop(Boolean)
       if (decoratorPropArgument?.type === 'Identifier') {
-        rawType = decoratorPropArgument.name
+        type = identifier(decoratorPropArgument.name)
+        // @Prop([Boolean, String])
       } else if (decoratorPropArgument?.type === 'ArrayExpression') {
-        rawType = propDecorator.expression.arguments?.[0]
-      } else {
-        const typeKind = propDecorator.expression?.arguments?.[0]?.properties?.find(
-          (p) => p.key.name === 'type'
-        )
+        type = decoratorPropArgument
+        // @Prop({ type: Boolean })
+      } else if (decoratorPropArgument?.type === 'ObjectExpression') {
+        const typeKind = decoratorPropArgument.properties.find(
+          (p) =>
+            p.type === 'ObjectProperty' &&
+            p.key.type === 'Identifier' &&
+            p.key.name === 'type'
+        ) as ObjectProperty | undefined
 
-        requiredProp = propDecorator.expression?.arguments?.[0]?.properties?.find(
-          (p) => p.key.name === 'required'
-        )
+        requiredProp = decoratorPropArgument.properties.find(
+          (p) =>
+            p.type === 'ObjectProperty' &&
+            p.key.type === 'Identifier' &&
+            p.key.name === 'required'
+        ) as ObjectProperty | undefined
 
-        if (typeKind) {
-          rawType = typeKind.value.name
-        } else {
-          rawType = prop.typeAnnotation?.typeAnnotation?.type || 'Object'
+        if (typeKind && typeKind.value.type === 'Identifier') {
+          type = identifier(typeKind.value.name)
         }
       }
 
-      let type: any
-      let isSimpleIdentifier = false
+      const propTsAnnotation = prop.typeAnnotation?.typeAnnotation
 
-      if (rawType.type === 'ArrayExpression') {
-        type = rawType
-      } else if (rawType.match(/^TS(.*)Keyword$/)) {
-        let keyword = rawType.match(/^TS(.*)Keyword$/)[1]
+      // Explicit type was not found in prop, try to detect it
+      if (!type && propTsAnnotation) {
+        let primitiveTsType: TSTypeKind | string = propTsAnnotation.type
 
-        if (['Any'].includes(keyword)) {
-          keyword = 'Object'
-        } else {
-          isSimpleIdentifier = true
+        if (propTsAnnotation.type === 'TSUnionType') {
+          const rawUnionTypes = propTsAnnotation.types
+          const rawUnionType = rawUnionTypes[0]
+
+          if (rawUnionType.type === 'TSLiteralType') {
+            primitiveTsType = rawUnionType.literal.type
+          } else {
+            primitiveTsType = rawUnionType.type
+          }
         }
 
-        type = identifier(keyword)
-      } else if (rawType === 'TSUnionType') {
-        const annotation = prop.typeAnnotation?.typeAnnotation
-        const rawUnionTypes = 'types' in annotation ? annotation.types : []
-
-        const isOptional = rawUnionTypes.some(
-          (unionType) =>
-            unionType.type === 'TSNullKeyword' ||
-            unionType.type === 'TSUndefinedKeyword'
-        )
-
-        const rawUnionType = rawUnionTypes[0]
-
-        if (rawUnionType.type === 'TSTypeReference') {
-          type = identifier('Object')
-        } else if (rawUnionType.type === 'TSLiteralType') {
-          isSimpleIdentifier = true
-          type = identifier(
-            rawUnionType.literal.type === 'StringLiteral' ? 'String' : 'Number'
-          )
-        } else if (rawUnionType.type === 'TSNumberKeyword') {
-          isSimpleIdentifier = true
+        if (
+          primitiveTsType === 'TSNumberKeyword' ||
+          primitiveTsType === 'NumericLiteral'
+        ) {
           type = identifier('Number')
-        } else if (rawUnionType.type === 'TSStringKeyword') {
-          isSimpleIdentifier = true
+        } else if (
+          primitiveTsType === 'TSStringKeyword' ||
+          primitiveTsType === 'StringLiteral'
+        ) {
           type = identifier('String')
-        } else if (rawUnionType.type === 'TSBooleanKeyword') {
-          isSimpleIdentifier = true
+        } else if (
+          primitiveTsType === 'TSBooleanKeyword' ||
+          primitiveTsType === 'BooleanLiteral'
+        ) {
           type = identifier('Boolean')
+        } else if (primitiveTsType === 'TSFunctionType') {
+          type = identifier('Function')
+        } else if (primitiveTsType === 'TSArrayType') {
+          type = identifier('Array')
         } else {
           type = identifier('Object')
         }
-      } else if (rawType === 'TSArrayType') {
-        type = identifier('Array')
-      } else if (rawType === 'TSTypeReference' || rawType.match(/^TS/)) {
-        type = identifier('Object')
-      } else if (
-        rawType === 'String' ||
-        rawType === 'Number' ||
-        rawType === 'Boolean'
-      ) {
-        isSimpleIdentifier = true
-        type = identifier(rawType)
-      } else {
-        type = identifier(rawType)
       }
 
-      needsPropTypeImport = true
+      let isSimpleIdentifier =
+        propTsAnnotation &&
+        ['TSNumberKeyword', 'TSStringKeyword', 'TSBooleanKeyword'].includes(
+          propTsAnnotation.type
+        )
 
-      const isRequired = requiredProp ? requiredProp.value.value : false
+      if (!isSimpleIdentifier) {
+        needsPropTypeImport = true
+      }
 
-      const propProperties: Property[] = [
-        property(
-          'init',
-          identifier('type'),
-          isSimpleIdentifier
-            ? type
-            : tsAsExpression(
-                type,
-                tsTypeReference(
-                  identifier('PropType'),
-                  tsTypeParameterInstantiation([
-                    prop.typeAnnotation?.typeAnnotation,
-                  ])
+      const isRequired =
+        requiredProp && requiredProp.value.type === 'BooleanLiteral'
+          ? requiredProp.value.value
+          : false
+
+      const propProperties: Property[] = []
+
+      if (type) {
+        propProperties.push(
+          property(
+            'init',
+            identifier('type'),
+            isSimpleIdentifier || !propTsAnnotation
+              ? type
+              : tsAsExpression(
+                  type,
+                  tsTypeReference(
+                    identifier('PropType'),
+                    tsTypeParameterInstantiation([propTsAnnotation])
+                  )
                 )
-              )
-        ),
-      ]
+          )
+        )
+      }
 
       if (isRequired) {
         propProperties.push(
@@ -466,20 +467,27 @@ function classToOptions(context: Context) {
         )
       }
 
-      if (propDecorator && propDecorator.expression?.arguments?.length) {
-        const theDefault = propDecorator.expression.arguments[0].properties?.find(
-          (p) => p.key.name === 'default'
-        )
-        const theValidator = propDecorator.expression.arguments[0].properties?.find(
-          (p) => p.key.name === 'validator'
+      if (decoratorPropArgument?.type === 'ObjectExpression') {
+        const theDefault = decoratorPropArgument.properties?.find(
+          (p) =>
+            p.type === 'ObjectProperty' &&
+            p.key.type === 'Identifier' &&
+            p.key.name === 'default'
         )
 
-        if (theDefault?.value) {
+        const theValidator = decoratorPropArgument.properties?.find(
+          (p) =>
+            p.type === 'ObjectMethod' &&
+            p.key.type === 'Identifier' &&
+            p.key.name === 'validator'
+        )
+
+        if (theDefault && 'value' in theDefault) {
           propProperties.push(
             property(
               'init',
               identifier('default'),
-              arrowFunctionExpression([], theDefault?.value)
+              arrowFunctionExpression([], theDefault.value)
             )
           )
         }
@@ -510,6 +518,23 @@ function classToOptions(context: Context) {
     }
   })
 
+  // Method provides
+  prevDefaultExportDeclaration
+    .find(ClassMethod, {
+      decorators: [
+        {
+          expression: {
+            callee: {
+              name: 'Provide',
+            },
+          },
+        },
+      ],
+    })
+    .forEach((c) => {
+      provides.push(c.node)
+    })
+
   // Mixins
   if (mixins.length) {
     newClassProperties.push(
@@ -523,6 +548,8 @@ function classToOptions(context: Context) {
 
   // Provide
   if (provides.length) {
+    const providesArr = Array.from(provides)
+
     newClassProperties.push(
       objectMethod(
         'method',
@@ -531,28 +558,36 @@ function classToOptions(context: Context) {
         blockStatement([
           returnStatement(
             objectExpression(
-              Array.from(provides).map((provide) =>
-                property(
-                  'init',
-                  provides[0].decorators[0].expression.arguments[0].value
-                    ? identifier(
-                        provides[0].decorators[0].expression.arguments[0].value
-                      )
-                    : provide.key,
-                  memberExpression(thisExpression(), provide.key)
-                )
-              )
+              providesArr.map((provide) => {
+                const provideExpression = provide.decorators?.[0].expression
+
+                if (provideExpression?.type === 'CallExpression') {
+                  const args = provideExpression.arguments
+                  const firstArg = args[0]
+
+                  return property(
+                    'init',
+                    firstArg?.type === 'StringLiteral'
+                      ? identifier(firstArg.value)
+                      : provide.key,
+                    memberExpression(thisExpression(), provide.key)
+                  )
+                }
+
+                console.error('Invalid provide syntax', provide.key)
+                throw new Error('Invalid provide syntax')
+              })
             )
           ),
         ])
       )
     )
 
-    data.push(
-      ...Array.from(provides).map((provide) =>
-        property('init', provide.key, provide.value)
-      )
-    )
+    providesArr.forEach((provide) => {
+      if (provide.type === 'ClassProperty' && provide.value) {
+        data.push(property('init', provide.key, provide.value))
+      }
+    })
   }
 
   // Inject
@@ -599,6 +634,7 @@ function classToOptions(context: Context) {
       : [])
   )
 
+  //@todo - setters don't work
   const computed: any[] = []
   const methods: any[] = []
 
@@ -665,13 +701,17 @@ function classToOptions(context: Context) {
     )
   })
 
-  prevClassComputed.forEach((c) => {
-    const method = objectMethod('method', c.node.key, [], c.node.body)
-    method.async = c.node.async
-    method.comments = c.node.comments
-    method.returnType = c.node.returnType
-    computed.push(method)
-  })
+  prevDefaultExportDeclaration
+    .find(ClassMethod, {
+      kind: 'get',
+    })
+    .forEach((c) => {
+      const method = objectMethod('method', c.node.key, [], c.node.body)
+      method.async = c.node.async
+      method.comments = c.node.comments
+      method.returnType = c.node.returnType
+      computed.push(method)
+    })
 
   refs.forEach((ref) => {
     let statement: any = memberExpression(
@@ -716,33 +756,42 @@ function classToOptions(context: Context) {
 
   // Watch
   const watches: (ObjectProperty | ObjectMethod)[] = []
-  prevClassWatches.map((c) => {
-    const watchName = c.node.decorators?.[0].expression.arguments[0].value
-    const watchOptions =
-      c.node.decorators?.[0].expression.arguments[1]?.properties || []
-    const key = watchName.includes('.')
-      ? stringLiteral(watchName)
-      : identifier(watchName)
-    let watch
-
-    // We need a object-style watcher
-    if (watchOptions.length) {
-      const method = objectMethod(
-        'method',
-        identifier('handler'),
-        c.node.params,
-        c.node.body
+  prevDefaultExportDeclaration
+    .find(ClassMethod, (dec) =>
+      Boolean(
+        dec.decorators?.[0]?.expression &&
+          'callee' in dec.decorators?.[0]?.expression &&
+          'name' in dec.decorators?.[0]?.expression.callee &&
+          dec.decorators?.[0]?.expression?.callee?.name === 'Watch'
       )
+    )
+    .map((c) => {
+      const watchName = c.node.decorators?.[0].expression.arguments[0].value
+      const watchOptions =
+        c.node.decorators?.[0].expression.arguments[1]?.properties || []
+      const key = watchName.includes('.')
+        ? stringLiteral(watchName)
+        : identifier(watchName)
+      let watch
 
-      method.async = c.node.async
-      watch = objectProperty(key, objectExpression([...watchOptions, method]))
-    } else {
-      watch = objectMethod('method', key, c.node.params, c.node.body)
-      watch.async = c.node.async
-    }
+      // We need a object-style watcher
+      if (watchOptions.length) {
+        const method = objectMethod(
+          'method',
+          identifier('handler'),
+          c.node.params,
+          c.node.body
+        )
 
-    watches.push(watch)
-  })
+        method.async = c.node.async
+        watch = objectProperty(key, objectExpression([...watchOptions, method]))
+      } else {
+        watch = objectMethod('method', key, c.node.params, c.node.body)
+        watch.async = c.node.async
+      }
+
+      watches.push(watch)
+    })
 
   if (watches.length) {
     newClassProperties.push(
@@ -751,19 +800,25 @@ function classToOptions(context: Context) {
   }
 
   // Hooks
-  prevClassHooks.forEach((m) => {
-    const method = objectMethod(
-      'method',
-      m.node.key,
-      m.node.params,
-      m.node.body
+  prevDefaultExportDeclaration
+    .find(
+      ClassMethod,
+      (dec) =>
+        dec.kind === 'method' && vueHooks.includes((dec.key as Identifier).name)
     )
+    .forEach((m) => {
+      const method = objectMethod(
+        'method',
+        m.node.key,
+        m.node.params,
+        m.node.body
+      )
 
-    method.async = m.node.async
-    method.comments = m.node.comments
-    method.returnType = m.node.returnType
-    newClassProperties.push(method)
-  })
+      method.async = m.node.async
+      method.comments = m.node.comments
+      method.returnType = m.node.returnType
+      newClassProperties.push(method)
+    })
 
   // Methods
   vuex.Action.forEach((actionArguments, actionName: string) => {
@@ -843,18 +898,35 @@ function classToOptions(context: Context) {
     )
   })
 
-  prevClassMethods.forEach((m) => {
-    const method = objectMethod(
-      'method',
-      m.node.key,
-      m.node.params,
-      m.node.body
+  prevDefaultExportDeclaration
+    .find(ClassMethod, (dec) =>
+      Boolean(
+        dec.kind === 'method' &&
+          'name' in dec.key &&
+          dec.key.name &&
+          !vueHooks.includes(dec.key.name as string) &&
+          ((dec.decorators?.[0]?.expression &&
+            'callee' in dec.decorators?.[0]?.expression &&
+            'name' in dec.decorators?.[0]?.expression.callee &&
+            dec.decorators?.[0]?.expression?.callee?.name !== 'Watch' &&
+            dec.decorators?.[0]?.expression?.callee?.name !== 'Emit') ||
+            !dec.decorators?.[0]?.expression)
+      )
     )
+    .forEach((m) => {
+      const method = objectMethod(
+        'method',
+        m.node.key,
+        m.node.params,
+        m.node.body
+      )
 
-    method.async = m.node.async
-    method.comments = m.node.comments
-    methods.push(method)
-  })
+      method.async = m.node.async
+      method.comments = m.node.comments
+      method.typeParameters = m.node.typeParameters
+      method.returnType = m.node.returnType
+      methods.push(method)
+    })
 
   if (methods.length) {
     newClassProperties.push(
@@ -883,6 +955,10 @@ function classToOptions(context: Context) {
   if (needsPropTypeImport) {
     importModule('PropType', 'vue', context)
   }
+
+  const newDefaultExportDeclaration = exportDefaultDeclaration(
+    identifier('default')
+  )
 
   newDefaultExportDeclaration.declaration = expressionStatement(
     callExpression(identifier('defineComponent'), [
